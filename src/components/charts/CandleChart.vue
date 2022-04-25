@@ -9,6 +9,7 @@ import { Trade, PairHistory, PlotConfig } from '@/types';
 import randomColor from '@/shared/randomColor';
 import { roundTimeframe } from '@/shared/timemath';
 import heikinashi from '@/shared/heikinashi';
+import buySellVolumes from '@/shared/buySellVolumes';
 import ECharts from 'vue-echarts';
 
 import { use } from 'echarts/core';
@@ -79,6 +80,7 @@ export default defineComponent({
     trades: { required: false, default: () => [], type: Array as () => Trade[] },
     dataset: { required: true, type: Object as () => PairHistory },
     heikinAshi: { required: false, default: false, type: Boolean },
+    buySellVolumeSplit: { required: false, default: true, type: Boolean },
     useUTC: { required: false, default: true, type: Boolean },
     plotConfig: { required: true, type: Object as () => PlotConfig },
     theme: { default: 'dark', type: String },
@@ -211,11 +213,67 @@ export default defineComponent({
         }
       }
 
+      let dataSet = props.heikinAshi
+        ? heikinashi(datasetColumns.value, props.dataset.data)
+        : props.dataset.data;
+
+      if (props.buySellVolumeSplit) {
+        dataSet = buySellVolumes(datasetColumns.value, props.dataset.data);
+      }
+
+      const volumeSeries: SeriesOption | SeriesOption[] = props.buySellVolumeSplit
+        ? [
+            {
+              name: 'Volume buy',
+              type: 'bar',
+              xAxisIndex: 1,
+              yAxisIndex: 1,
+              stack: 'volume',
+              itemStyle: {
+                color: upColor,
+              },
+              // large: true,
+              encode: {
+                x: colDate,
+                y: props.dataset.columns.length,
+              },
+            },
+            {
+              name: 'Volume sell',
+              type: 'bar',
+              xAxisIndex: 1,
+              yAxisIndex: 1,
+              stack: 'volume',
+              itemStyle: {
+                color: downColor,
+              },
+              // large: true,
+              encode: {
+                x: colDate,
+                y: props.dataset.columns.length + 1,
+              },
+            },
+          ]
+        : [
+            {
+              name: 'Volume',
+              type: 'bar',
+              xAxisIndex: 1,
+              yAxisIndex: 1,
+              itemStyle: {
+                color: '#777777',
+              },
+              large: true,
+              encode: {
+                x: colDate,
+                y: colVolume,
+              },
+            },
+          ];
+
       const options: EChartsOption = {
         dataset: {
-          source: props.heikinAshi
-            ? heikinashi(datasetColumns.value, props.dataset.data)
-            : props.dataset.data,
+          source: dataSet,
         },
         grid: [
           {
@@ -251,20 +309,7 @@ export default defineComponent({
               y: [colOpen, colClose, colLow, colHigh],
             },
           },
-          {
-            name: 'Volume',
-            type: 'bar',
-            xAxisIndex: 1,
-            yAxisIndex: 1,
-            itemStyle: {
-              color: '#777777',
-            },
-            large: true,
-            encode: {
-              x: colDate,
-              y: colVolume,
-            },
-          },
+          ...volumeSeries,
           {
             name: 'Long',
             type: 'scatter',
@@ -526,7 +571,12 @@ export default defineComponent({
         animation: false,
         legend: {
           // Initial legend, further entries are pushed to the below list
-          data: ['Candles', 'Volume', 'Long', 'Long exit'],
+          data: [
+            'Candles',
+            ...(props.buySellVolumeSplit ? ['Volume buy', 'Volume sell'] : ['Volume']),
+            'Long',
+            'Long exit',
+          ],
           right: '1%',
         },
         tooltip: {
@@ -688,6 +738,10 @@ export default defineComponent({
 
     watch(
       () => props.heikinAshi,
+      () => updateChart(),
+    );
+    watch(
+      () => props.buySellVolumeSplit,
       () => updateChart(),
     );
 

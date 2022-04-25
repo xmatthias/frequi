@@ -41,6 +41,7 @@
           >
         </div>
         <div class="ml-auto d-flex align-items-center">
+          <b-form-checkbox v-model="buySellVolumeSplit" class="mr-1">Volume Split</b-form-checkbox>
           <b-form-checkbox v-model="heikinAshi">Heikin Ashi</b-form-checkbox>
 
           <div class="ml-2">
@@ -67,6 +68,7 @@
           :trades="trades"
           :plot-config="plotConfig"
           :heikin-ashi="heikinAshi"
+          :buy-sell-volume-split="buySellVolumeSplit"
           :use-u-t-c="settingsStore.timezone === 'UTC'"
           :theme="settingsStore.chartTheme"
         >
@@ -121,6 +123,7 @@ export default defineComponent({
     const plotConfig = ref<PlotConfig>({ ...EMPTY_PLOTCONFIG });
     const plotConfigName = ref('');
     const heikinAshi = ref(false);
+    const buySellVolumeSplit = ref(false);
     const showPlotConfig = ref(props.plotConfigModal);
 
     const dataset = computed((): PairHistory => {
@@ -234,6 +237,7 @@ export default defineComponent({
       noDatasetText,
       hasDataset,
       heikinAshi,
+      buySellVolumeSplit,
       plotConfigChanged,
       showPlotConfig,
       showConfigurator,
