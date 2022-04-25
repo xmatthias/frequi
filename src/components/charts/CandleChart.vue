@@ -5,6 +5,8 @@
 </template>
 
 <script lang="ts">
+import { defineComponent, ref, computed, onMounted, watch } from '@vue/composition-api';
+import { GridOption } from 'echarts/types/dist/shared';
 import { Trade, PairHistory, PlotConfig } from '@/types';
 import randomColor from '@/shared/randomColor';
 import { roundTimeframe } from '@/shared/timemath';
@@ -30,6 +32,7 @@ import {
   VisualMapComponent,
   VisualMapPiecewiseComponent,
 } from 'echarts/components';
+import { useVolumeProfile } from '@/composables/volumeProfile';
 
 use([
   AxisPointerComponent,
@@ -54,7 +57,9 @@ use([
 
 // Chart default options
 const MARGINLEFT = '5.5%';
-const MARGINRIGHT = '1%';
+// const MARGINRIGHT = '1%';
+// VolumeProfile - should be conditional
+const MARGINRIGHT = '10%';
 const NAMEGAP = 55;
 const SUBPLOTHEIGHT = 8; // Value in %
 
@@ -71,8 +76,6 @@ const shortexitSignalColor = '#faba25';
 const tradeBuyColor = 'cyan';
 const tradeSellColor = 'pink';
 
-import { defineComponent, ref, computed, onMounted, watch } from '@vue/composition-api';
-
 export default defineComponent({
   name: 'CandleChart',
   components: { 'v-chart': ECharts },
@@ -81,6 +84,7 @@ export default defineComponent({
     dataset: { required: true, type: Object as () => PairHistory },
     heikinAshi: { required: false, default: false, type: Boolean },
     buySellVolumeSplit: { required: false, default: true, type: Boolean },
+    volumeProfile: { required: false, default: true, type: Boolean },
     useUTC: { required: false, default: true, type: Boolean },
     plotConfig: { required: true, type: Object as () => PlotConfig },
     theme: { default: 'dark', type: String },
@@ -150,6 +154,10 @@ export default defineComponent({
       }
       return { trades, tradesClose };
     };
+
+    const { volumeProfileSeries, volumeProfileXaxis, volumeProfileYaxis } = useVolumeProfile(
+      props.volumeProfile,
+    );
 
     const updateChart = (initial = false) => {
       if (!hasData.value) {
@@ -221,7 +229,7 @@ export default defineComponent({
         dataSet = buySellVolumes(datasetColumns.value, props.dataset.data);
       }
 
-      const volumeSeries: SeriesOption | SeriesOption[] = props.buySellVolumeSplit
+      const volumeSeries: SeriesOption[] = props.buySellVolumeSplit
         ? [
             {
               name: 'Volume buy',
@@ -271,6 +279,19 @@ export default defineComponent({
             },
           ];
 
+      const volumeProfileGrid: GridOption[] = props.volumeProfile
+        ? [
+            {
+              // VolumeProfile
+              // left: MARGINLEFT,
+              right: 0,
+              width: MARGINRIGHT,
+              // Grid Layout from bottom to top
+              bottom: `${subplotCount * SUBPLOTHEIGHT + 2}%`,
+            },
+          ]
+        : [];
+
       const options: EChartsOption = {
         dataset: {
           source: dataSet,
@@ -290,6 +311,7 @@ export default defineComponent({
             bottom: `${subplotCount * SUBPLOTHEIGHT}%`,
             height: `${SUBPLOTHEIGHT}%`,
           },
+          ...volumeProfileGrid,
         ],
 
         series: [
@@ -310,6 +332,8 @@ export default defineComponent({
             },
           },
           ...volumeSeries,
+          ...volumeProfileSeries.value,
+
           {
             name: 'Long',
             type: 'scatter',
@@ -418,7 +442,7 @@ export default defineComponent({
 
       // START Subplots
       if ('subplots' in props.plotConfig) {
-        let plotIndex = 2;
+        let plotIndex = props.volumeProfile ? 3 : 2;
         Object.entries(props.plotConfig.subplots).forEach(([key, value]) => {
           // define yaxis
 
@@ -643,6 +667,7 @@ export default defineComponent({
             min: 'dataMin',
             max: 'dataMax',
           },
+          ...volumeProfileXaxis.value,
         ],
         yAxis: [
           {
@@ -661,6 +686,7 @@ export default defineComponent({
             axisTick: { show: false },
             splitLine: { show: false },
           },
+          ...volumeProfileYaxis.value,
         ],
         dataZoom: [
           // Start values are recalculated once the data is known
@@ -702,21 +728,6 @@ export default defineComponent({
       updateChart(true);
     };
 
-    // createSignalData(colDate: number, colOpen: number, colBuy: number, colSell: number): void {
-    // Calculate Buy and sell Series
-    // if (!this.signalsCalculated) {
-    //   // Generate Buy and sell array (using open rate to display marker)
-    //   for (let i = 0, len = this.dataset.data.length; i < len; i += 1) {
-    //     if (this.dataset.data[i][colBuy] === 1) {
-    //       this.buyData.push([this.dataset.data[i][colDate], this.dataset.data[i][colOpen]]);
-    //     }
-    //     if (this.dataset.data[i][colSell] === 1) {
-    //       this.sellData.push([this.dataset.data[i][colDate], this.dataset.data[i][colOpen]]);
-    //     }
-    //   }
-    //   this.signalsCalculated = true;
-    // }
-    // }
     onMounted(() => {
       initializeChartOptions();
     });
@@ -743,6 +754,10 @@ export default defineComponent({
     watch(
       () => props.buySellVolumeSplit,
       () => updateChart(),
+    );
+    watch(
+      () => props.volumeProfile,
+      () => initializeChartOptions(),
     );
 
     return {
